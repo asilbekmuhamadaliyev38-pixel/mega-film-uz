@@ -23,7 +23,7 @@ from telegram.ext import (
 
 TOKEN = os.environ.get("TOKEN") 
 ADMIN_ID = 5837813502
-SOURCE_CHANNEL = "-1003926152488"
+SOURCE_CHANNEL = "-1004381790658"
 
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL") 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
