@@ -724,13 +724,23 @@ async def handle_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         kb = []
         for ch_id, ch_name in channels.items():
+            # Asosiy kanal — faqat asosiy admin ko'ra oladi
+            if ch_id == "@mdcmovie" and not is_main_admin(user_id):
+                continue
             kb.append([InlineKeyboardButton(f"🗑️ {ch_name} ({ch_id})", callback_data=f"remove_channel_{ch_id}")])
+        if not kb:
+            await query.answer("❌ O'chirishga ruxsat yo'q!", show_alert=True)
+            return
         kb.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel_to_main")])
         await query.message.edit_text("👇 O'chirmoqchi bo'lgan kanalni tanlang:", reply_markup=InlineKeyboardMarkup(kb))
         return
 
     elif data.startswith("remove_channel_"):
         ch_id_to_remove = data[len("remove_channel_"):]
+        # Asosiy kanalni faqat asosiy admin o'chira oladi
+        if ch_id_to_remove == "@mdcmovie" and not is_main_admin(user_id):
+            await query.answer("❌ Bu kanalni o'chirishga ruxsatingiz yo'q!", show_alert=True)
+            return
         if ch_id_to_remove in channels:
             ch_name = channels.pop(ch_id_to_remove)
             save_data_local()
