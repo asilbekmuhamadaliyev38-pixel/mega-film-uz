@@ -23,7 +23,7 @@ from telegram.ext import (
 
 TOKEN = os.environ.get("TOKEN") 
 ADMIN_ID = 5837813502
-SOURCE_CHANNEL = "-1004381790658"
+SOURCE_CHANNEL = "-1003926152488"
 
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL") 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
@@ -277,7 +277,8 @@ async def send_movie_by_code(chat_id, movie_code, bot, context):
                     chat_id=chat_id,
                     from_chat_id=SOURCE_CHANNEL,
                     message_id=int(pid),
-                    reply_markup=kino_inline_kb
+                    reply_markup=kino_inline_kb,
+                    protect_content=True
                 )
             except Exception:
                 await bot.send_message(chat_id=chat_id, text="❌ Film o'chirilgan yoki bot kanalda admin emas.")
