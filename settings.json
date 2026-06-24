@@ -1,3 +1,6 @@
 {
-  "protect_content": true
+  "protect_content": true,
+  "start_media_type": "text",
+  "start_file_id": null,
+  "start_text": "👋 Assalomu alaykum, botimizga xush kelibsiz\n\n🎥 Bot orqali siz sevimli va eng yangi filmlar, seriallar va multfilmlarni eng birinchi boʻlib ko'rishingiz mumkin\n\n📌Maʼlumot uchun\n- Kerakli kino serial yoki multfilm kodini joʻnating va mazza qilib tomosha qiling\n- Pastdagi menyulardan oʻzingizga keragini Qidirishingiz mumkin yoki sizga yoqadigan janr tanlashingiz mumkin\n\nKodlarni bilmasangiz ushbu kanaldan topasiz: @mega_film_uz"
 }
