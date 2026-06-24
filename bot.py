@@ -3,6 +3,8 @@ import base64
 import requests
 import json
 import datetime
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 from telegram import (
     Update,
     InlineKeyboardButton,
@@ -24,7 +26,7 @@ from telegram.ext import (
 # ==================== SOZLAMALAR ====================
 TOKEN = os.environ.get("TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "5837813502"))
-SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL", "-1004381790658")
+SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL", "-1003926152488")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO_NAME = os.environ.get("REPO_NAME", "asilbekmuhamadaliyev38-pixel/mdcmovie")
@@ -42,9 +44,9 @@ blocked_users = set()
 admin_states = {}
 new_movie_wizard = {}
 ad_post_id = None
-views = {}          # {movie_code: count}
-saved_movies = {}   # {user_id: [code1, code2, ...]}
-admin_logs = []     # [{admin, action, time}]
+views = {}          
+saved_movies = {}   
+admin_logs = []     
 
 bot_settings = {
     "protect_content": True,
@@ -117,13 +119,17 @@ def load_data():
     admin_logs_raw = read_file("admin_logs.json", [])
     admin_logs.extend(admin_logs_raw[-200:])
 
-    loaded_cats = read_file("catalogs.json", [])
+    # MUAMMO SHU YERDA EDI: Agar Github yoki localda fayl bo'sh bo'lsa ham [] qaytardi,
+    # lekin None tekshirilgani uchun doim eski default janrlar qaytib kelaverardi.
+    loaded_cats = read_file("catalogs.json", None)
     catalogs.clear()
-    catalogs.extend(loaded_cats if loaded_cats else ["🍿 Kinolar", "🎬 Seriallar", "🧸 Multfilmlar"])
+    if loaded_cats is not None: catalogs.extend(loaded_cats)
+    else: catalogs.extend(["🍿 Kinolar", "🎬 Seriallar", "🧸 Multfilmlar"])
 
-    loaded_gnrs = read_file("genres.json", [])
+    loaded_gnrs = read_file("genres.json", None)
     genres.clear()
-    genres.extend(loaded_gnrs if loaded_gnrs else ["🔥 Jangari", "🤣 Komediya", "😢 Drama", "🚀 Fantastika"])
+    if loaded_gnrs is not None: genres.extend(loaded_gnrs)
+    else: genres.extend(["🔥 Jangari", "🤣 Komediya", "😢 Drama", "🚀 Fantastika"])
 
     adm = read_file("admins.json", [ADMIN_ID])
     admins.clear(); admins.update(set(adm)); admins.add(ADMIN_ID)
@@ -442,17 +448,22 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         admin_states[user_id] = None
         data = movies[code]
-        name = data.get("name", code) if isinstance(data, dict) else code
-        cur_cats = movies[code].get("catalogs", []) if isinstance(movies[code], dict) else []
-        cur_gnrs = movies[code].get("genres", []) if isinstance(movies[code], dict) else []
+        
+        if not isinstance(data, dict):
+            movies[code] = {"name": f"Kino {code}", "desc": "", "poster": "", "video_id": data, "catalogs": [], "genres": []}
+            data = movies[code]
+
+        name = data.get("name", code)
+        cur_cats = data.get("catalogs", [])
+        cur_gnrs = data.get("genres", [])
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("📛 Nom", callback_data=f"edit_name_{code}"),
              InlineKeyboardButton("📝 Ma'lumot", callback_data=f"edit_desc_{code}")],
             [InlineKeyboardButton("🖼 Poster", callback_data=f"edit_poster_{code}"),
              InlineKeyboardButton("📥 Video ID", callback_data=f"edit_vid_{code}")],
-            [InlineKeyboardButton("📂 Katalog", callback_data=f"edit_cats_{code}"),
-             InlineKeyboardButton("🎭 Janr", callback_data=f"edit_gnrs_{code}")],
-            [InlineKeyboardButton("❌ Bekor", callback_data="cancel_edit")]
+            [InlineKeyboardButton("📂 Kataloglar (Boshqarish)", callback_data=f"edit_cats_{code}")],
+            [InlineKeyboardButton("🎭 Janrlar (Boshqarish)", callback_data=f"edit_gnrs_{code}")],
+            [InlineKeyboardButton("❌ Chiqish (Tayyor)", callback_data="cancel_edit")]
         ])
         cats_str = ", ".join(cur_cats) if cur_cats else "Yo'q"
         gnrs_str = ", ".join(cur_gnrs) if cur_gnrs else "Yo'q"
@@ -467,14 +478,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         field = parts[2]
         code = parts[3]
         if code in movies:
+            if not isinstance(movies[code], dict):
+                movies[code] = {"name": f"Kino {code}", "desc": "", "poster": "", "video_id": movies[code], "catalogs": [], "genres": []}
+            
             if field == "name": movies[code]["name"] = text
             elif field == "desc": movies[code]["desc"] = text
             elif field == "poster": movies[code]["poster"] = text
             elif field == "vid": movies[code]["video_id"] = text
+            
             save_and_push("movies.json", movies, f"Kino tahrirlandi: {code}")
             add_log(user_id, f"Kino tahrirlandi: {code} ({field})")
             admin_states[user_id] = None
-            await update.message.reply_text(f"✅ Yangilandi!", reply_markup=get_admin_keyboard())
+            await update.message.reply_text(f"✅ Muaffaqiyatli yangilandi!", reply_markup=get_admin_keyboard())
         return
 
     if state == "add_custom_catalog":
@@ -678,7 +693,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📝 Start matnini o'zgartirish", callback_data="edit_start")],
             [InlineKeyboardButton("📢 Majburiy kanallar", callback_data="manage_ch")]
         ])
-        await update.message.reply_text("⚙️ Bot sozlamalari:", reply_markup=kb)
+        await update.message.reply_text("⚙️ Bot sozalamalari:", reply_markup=kb)
         await update.message.reply_text("Qaytish:", reply_markup=get_return_main_keyboard())
         return
 
@@ -774,21 +789,156 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("✨ Bu kino allaqachon saqlangan!", show_alert=True)
         return
 
+    # O'G'IL BOLLAR UCHUN KATALOG VA JANRNI 2 QATOR (YONMA-YON) QILISH
     if data == "user_show_catalogs":
         await query.answer()
-        kb = [[InlineKeyboardButton(cat, switch_inline_query_current_chat=f"katalog:{cat}")] for cat in catalogs]
+        kb = []
+        for i in range(0, len(catalogs), 2):
+            row = [InlineKeyboardButton(catalogs[i], switch_inline_query_current_chat=f"katalog:{catalogs[i]}")]
+            if i + 1 < len(catalogs):
+                row.append(InlineKeyboardButton(catalogs[i+1], switch_inline_query_current_chat=f"katalog:{catalogs[i+1]}"))
+            kb.append(row)
         kb.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="go_to_main_menu")])
         await query.message.edit_text("📂 Kerakli katalogni tanlang:", reply_markup=InlineKeyboardMarkup(kb))
         return
 
     if data == "user_show_genres":
         await query.answer()
-        kb = [[InlineKeyboardButton(gen, switch_inline_query_current_chat=f"janr:{gen}")] for gen in genres]
+        kb = []
+        for i in range(0, len(genres), 2):
+            row = [InlineKeyboardButton(genres[i], switch_inline_query_current_chat=f"janr:{genres[i]}")]
+            if i + 1 < len(genres):
+                row.append(InlineKeyboardButton(genres[i+1], switch_inline_query_current_chat=f"janr:{genres[i+1]}"))
+            kb.append(row)
         kb.append([InlineKeyboardButton("⬅️ Orqaga", callback_data="go_to_main_menu")])
         await query.message.edit_text("🎭 Kerakli janrni tanlang:", reply_markup=InlineKeyboardMarkup(kb))
         return
 
     if not is_admin(user_id): return
+
+    # TAHRIRLASH INLINE HANDLING
+    if data.startswith("edit_name_") or data.startswith("edit_desc_") or data.startswith("edit_poster_") or data.startswith("edit_vid_"):
+        await query.answer()
+        parts = data.split("_", 2)
+        field = parts[1]
+        code = parts[2]
+        admin_states[user_id] = f"edit_field_{field}_{code}"
+        await context.bot.send_message(chat_id=user_id, text=f"📝 Yangi qiymatni kiriting:", reply_markup=get_cancel_keyboard())
+        return
+
+    # KINO KATALOGLARINI TAHRIRLASH (PTICHKA BILAN)
+    if data.startswith("edit_cats_"):
+        await query.answer()
+        code = data.split("_")[2]
+        if code in movies and not isinstance(movies[code], dict):
+            movies[code] = {"name": f"Kino {code}", "desc": "", "poster": "", "video_id": movies[code], "catalogs": [], "genres": []}
+        
+        movie_cats = movies[code].get("catalogs", []) if code in movies else []
+        
+        kb = []
+        for i, cat in enumerate(catalogs):
+            status = "✅ " if cat in movie_cats else ""
+            kb.append([InlineKeyboardButton(f"{status}{cat}", callback_data=f"tgl_cat_{code}_{i}")])
+        kb.append([InlineKeyboardButton("🔙 Orqaga", callback_data=f"edit_back_{code}")])
+        await query.message.edit_text("📂 Kataloglarni boshqarish (Qo'shish/O'chirish uchun bosing):", reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if data.startswith("tgl_cat_"):
+        parts = data.split("_")
+        code = parts[2]
+        idx = int(parts[3])
+        cat_name = catalogs[idx]
+        if code in movies:
+            if "catalogs" not in movies[code]: movies[code]["catalogs"] = []
+            if cat_name in movies[code]["catalogs"]:
+                movies[code]["catalogs"].remove(cat_name)
+                await query.answer(f"❌ {cat_name} olib tashlandi")
+            else:
+                movies[code]["catalogs"].append(cat_name)
+                await query.answer(f"✅ {cat_name} biriktirildi")
+            save_and_push("movies.json", movies, f"Katalog tahrirlandi: {code}")
+            
+            # Inline tugmalarni srazi yangilash
+            movie_cats = movies[code].get("catalogs", [])
+            kb = []
+            for i, cat in enumerate(catalogs):
+                status = "✅ " if cat in movie_cats else ""
+                kb.append([InlineKeyboardButton(f"{status}{cat}", callback_data=f"tgl_cat_{code}_{i}")])
+            kb.append([InlineKeyboardButton("🔙 Orqaga", callback_data=f"edit_back_{code}")])
+            await query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    # KINO JANRLARINI TAHRIRLASH (PTICHKA BILAN)
+    if data.startswith("edit_gnrs_"):
+        await query.answer()
+        code = data.split("_")[2]
+        if code in movies and not isinstance(movies[code], dict):
+            movies[code] = {"name": f"Kino {code}", "desc": "", "poster": "", "video_id": movies[code], "catalogs": [], "genres": []}
+            
+        movie_gnrs = movies[code].get("genres", []) if code in movies else []
+        
+        kb = []
+        for i, gen in enumerate(genres):
+            status = "✅ " if gen in movie_gnrs else ""
+            kb.append([InlineKeyboardButton(f"{status}{gen}", callback_data=f"tgl_gen_{code}_{i}")])
+        kb.append([InlineKeyboardButton("🔙 Orqaga", callback_data=f"edit_back_{code}")])
+        await query.message.edit_text("🎭 Janrlarni boshqarish (Qo'shish/O'chirish uchun bosing):", reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if data.startswith("tgl_gen_"):
+        parts = data.split("_")
+        code = parts[2]
+        idx = int(parts[3])
+        gen_name = genres[idx]
+        if code in movies:
+            if "genres" not in movies[code]: movies[code]["genres"] = []
+            if gen_name in movies[code]["genres"]:
+                movies[code]["genres"].remove(gen_name)
+                await query.answer(f"❌ {gen_name} olib tashlandi")
+            else:
+                movies[code]["genres"].append(gen_name)
+                await query.answer(f"✅ {gen_name} biriktirildi")
+            save_and_push("movies.json", movies, f"Janr tahrirlandi: {code}")
+            
+            # Inline tugmalarni srazi yangilash
+            movie_gnrs = movies[code].get("genres", [])
+            kb = []
+            for i, gen in enumerate(genres):
+                status = "✅ " if gen in movie_gnrs else ""
+                kb.append([InlineKeyboardButton(f"{status}{gen}", callback_data=f"tgl_gen_{code}_{i}")])
+            kb.append([InlineKeyboardButton("🔙 Orqaga", callback_data=f"edit_back_{code}")])
+            await query.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
+        return
+
+    if data.startswith("edit_back_"):
+        await query.answer()
+        code = data.split("_")[2]
+        data_m = movies[code]
+        name = data_m.get("name", code)
+        cur_cats = data_m.get("catalogs", [])
+        cur_gnrs = data_m.get("genres", [])
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📛 Nom", callback_data=f"edit_name_{code}"),
+             InlineKeyboardButton("📝 Ma'lumot", callback_data=f"edit_desc_{code}")],
+            [InlineKeyboardButton("🖼 Poster", callback_data=f"edit_poster_{code}"),
+             InlineKeyboardButton("📥 Video ID", callback_data=f"edit_vid_{code}")],
+            [InlineKeyboardButton("📂 Kataloglar (Boshqarish)", callback_data=f"edit_cats_{code}")],
+            [InlineKeyboardButton("🎭 Janrlar (Boshqarish)", callback_data=f"edit_gnrs_{code}")],
+            [InlineKeyboardButton("❌ Chiqish (Tayyor)", callback_data="cancel_edit")]
+        ])
+        cats_str = ", ".join(cur_cats) if cur_cats else "Yo'q"
+        gnrs_str = ", ".join(cur_gnrs) if cur_gnrs else "Yo'q"
+        await query.message.edit_text(
+            f"✏️ '{name}' — nimani tahrirlaysiz?\n\n📂 Katalog: {cats_str}\n🎭 Janr: {gnrs_str}",
+            reply_markup=kb
+        )
+        return
+
+    if data == "cancel_edit":
+        await query.answer()
+        await query.message.edit_text("✅ Tahrirlash tugatildi va barcha o'zgarishlar saqlandi.", reply_markup=None)
+        await context.bot.send_message(chat_id=user_id, text="Asosiy panel:", reply_markup=get_admin_keyboard())
+        return
 
     if data == "add_cat":
         await query.answer()
@@ -897,18 +1047,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 add_log(user_id, f"Kino qo'shildi: {wiz['name']} ({code})")
                 admin_states[user_id] = None
                 
-                # ================= O'ZGARTIRILGAN QISMI =================
-                # Avtomatik xabar yuborilmaydi. Admin so'rovnomasi chiqadi:
                 kb_confirm = InlineKeyboardMarkup([
                     [InlineKeyboardButton("✅ Ha (Yuborilsin)", callback_data=f"alert_new_{code}")],
                     [InlineKeyboardButton("❌ Yo'q (Shart emas)", callback_data="alert_cancel")]
                 ])
                 await query.message.edit_text(
                     f"🎉 '{wiz['name']}' kinosi muvaffaqiyatli qo'shildi!\n\n"
-                    f"📢 Ushbu yangi kino haqida barcha foydalanuvchilarga xabar berilsinmi?",
+                    f"📢 Ushbu yangi kino haqica barcha foydalanuvchilarga xabar berilsinmi?",
                     reply_markup=kb_confirm
                 )
-                # ========================================================
         else:
             idx = int(val)
             gen_name = genres[idx]
@@ -918,7 +1065,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await query.answer(f"➕ {gen_name} qo'shildi")
         return
 
-    # ================= YANGI CALLBACK HANDLERLAR =================
     if data.startswith("alert_new_"):
         await query.answer()
         movie_code = data.split("_")[2]
@@ -945,7 +1091,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Xabar bekor qilindi")
         await query.message.edit_text("✅ Tushunarli. Foydalanuvchilarga bildirishnoma yuborilmadi.", reply_markup=get_admin_keyboard())
         return
-    # ============================================================
 
     if data == "broadcast_confirm":
         await query.answer()
@@ -970,9 +1115,19 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     pass
 
+# Render port so'ragani uchun soxta veb-server
+def run_fake_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), SimpleHTTPRequestHandler)
+    server.serve_forever()
+
 def main():
     load_data()
     if not TOKEN: return
+    
+    # Soxta serverni alohida oqimda ishga tushirish
+    threading.Thread(target=run_fake_server, daemon=True).start()
+    
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
