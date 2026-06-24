@@ -26,10 +26,10 @@ from telegram.ext import (
 # ==================== SOZLAMALAR ====================
 TOKEN = os.environ.get("TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", "5837813502"))
-SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL", "-1003926152488")
+SOURCE_CHANNEL = os.environ.get("SOURCE_CHANNEL", "-1004381790658")
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-REPO_NAME = os.environ.get("REPO_NAME", "asilbekmuhamadaliyev38-pixel/mdcmovie")
+REPO_NAME = os.environ.get("REPO_NAME", "asilbekmuhamadaliyev38-pixel/mega-film-uz")
 
 # ==================== MA'LUMOTLAR ====================
 admins = set()
