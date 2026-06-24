@@ -23,7 +23,10 @@
     "name": "Garry Potter va Azkaban mahbusi",
     "desc": "720p | Uzbek(2x), Ingliz Rus",
     "poster": "https://i.ibb.co/yFhZhpGn/photo.jpg",
-    "video_id": "5"
+    "video_id": "5",
+    "genres": [
+      "Fantastik"
+    ]
   },
   "4": {
     "name": "Garry Potter va Alanga kubogi",
