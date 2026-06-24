@@ -64,7 +64,10 @@
     "name": "Garry Potter va Ajal tuhfalari 1",
     "desc": "720p | Uzbek(2x), Ingliz",
     "poster": "https://i.ibb.co/0yQrYYpH/photo.jpg",
-    "video_id": "9"
+    "video_id": "9",
+    "genres": [
+      "Fantastik"
+    ]
   },
   "8": {
     "name": "Garry Potter va Ajal tuhfalari 2",
